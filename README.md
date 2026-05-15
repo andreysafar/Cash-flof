@@ -73,7 +73,22 @@
 
 ### Вариант 2. Командная строка
 
-Укажите путь к Android SDK одним из способов:
+**Шаг 1. Java.** Для `./gradlew` нужен JDK. Если в терминале видите
+`Unable to locate a Java Runtime` — JDK не установлен/не виден. Варианты:
+
+- Использовать JDK, встроенный в Android Studio (ничего ставить не надо), macOS:
+  ```bash
+  export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+  ```
+  (Linux: `.../android-studio/jbr`; Windows: `...\Android Studio\jbr`)
+- Либо поставить JDK 21 отдельно — macOS:
+  ```bash
+  brew install --cask temurin@21
+  ```
+
+Проверка: `java -version` должно показать версию 17 или 21.
+
+**Шаг 2. Android SDK.** Укажите путь одним из способов:
 
 - переменная окружения `ANDROID_HOME=/путь/к/Android/Sdk`, или
 - файл `local.properties` в корне:
@@ -81,7 +96,10 @@
   sdk.dir=/путь/к/Android/Sdk
   ```
 
-Сборка debug-APK:
+(если установлена Android Studio, SDK обычно в
+`~/Library/Android/sdk` на macOS, `~/Android/Sdk` на Linux.)
+
+**Шаг 3.** Сборка debug-APK:
 
 ```bash
 ./gradlew assembleDebug
@@ -116,6 +134,36 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 Юнит-тесты `app/src/test/.../CalculatorTest.kt` проверяют пассивный доход,
 итоги, получку, платёж по кредиту банка (10%), выход из крысиных бегов,
 скоростную дорожку, опционы и короткие позиции.
+
+---
+
+## Диагностика частых ошибок
+
+**`./gradlew ...` → `Unable to locate a Java Runtime`**
+На машине нет JDK в PATH. Это не ошибка кода. Решение — «Шаг 1. Java» выше:
+задать `JAVA_HOME` на встроенный в Android Studio JDK или поставить Temurin 21.
+Либо вообще не использовать терминал и собирать через меню Android Studio
+`Build → Build APK(s)` (там свой JDK).
+
+**Android Studio: `Error running 'app': Run configuration app is not
+supported in the current project. Cannot obtain the package.`**
+Возникает, если конфигурация запуска создалась до завершения первой
+синхронизации Gradle (она может идти несколько минут). По шагам:
+
+1. Дождитесь полного завершения Gradle Sync (статус-бар внизу).
+2. `File → Sync Project with Gradle Files`.
+3. Сверху рядом с кнопкой ▶ выберите модуль **app** в списке конфигураций.
+4. Если не помогло — `Build → Clean Project`, затем `Build → Rebuild Project`.
+5. В крайнем случае — `File → Invalidate Caches… → Invalidate and Restart`.
+
+Конфигурационный кэш Gradle намеренно отключён
+(`org.gradle.configuration-cache=false` в `gradle.properties`) — он мог
+вызывать именно эту ошибку IDE; включать обратно не требуется.
+
+**Долгая первая синхронизация / `Sync is taking a significant amount…`**
+Это нормально: при первом запуске скачиваются Android Gradle Plugin,
+AndroidX, Compose и при необходимости SDK Platform 35. Нужен интернет к
+`dl.google.com` и `maven.google.com`. Дальше всё берётся из кэша.
 
 ---
 
