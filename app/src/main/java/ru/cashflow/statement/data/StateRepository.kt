@@ -17,8 +17,15 @@ class StateRepository(context: Context) {
     }
 
     fun load(): FinancialStatement = runCatching {
-        if (file.exists()) json.decodeFromString<FinancialStatement>(file.readText())
-        else FinancialStatement()
+        if (!file.exists()) return@runCatching FinancialStatement()
+        // Защита от «раздутого» файла старых версий (баг экспоненциального
+        // снимка): не читаем гигантский JSON в память — начинаем заново.
+        if (file.length() > MAX_FILE_BYTES) {
+            file.delete()
+            return@runCatching FinancialStatement()
+        }
+        val st = json.decodeFromString<FinancialStatement>(file.readText())
+        st.copy(history = st.history.takeLast(MAX_HISTORY))
     }.getOrDefault(FinancialStatement())
 
     fun save(state: FinancialStatement) {
@@ -31,5 +38,7 @@ class StateRepository(context: Context) {
 
     companion object {
         const val FILE_NAME = "cashflow_statement.json"
+        const val MAX_HISTORY = 60
+        private const val MAX_FILE_BYTES = 5_000_000L
     }
 }

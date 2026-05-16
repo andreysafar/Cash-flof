@@ -9,10 +9,12 @@ import ru.cashflow.statement.data.StateRepository
 import ru.cashflow.statement.logic.Calculator
 import ru.cashflow.statement.model.FastTrackBusiness
 import ru.cashflow.statement.model.FinancialStatement
+import ru.cashflow.statement.model.Profession
 import ru.cashflow.statement.model.Property
 import ru.cashflow.statement.model.StockHolding
 import ru.cashflow.statement.model.StockType
 import ru.cashflow.statement.model.Transaction
+import ru.cashflow.statement.model.toStatement
 
 enum class DebtKind { HOME, EDU, CAR, CREDIT_CARD, RETAIL }
 
@@ -23,15 +25,20 @@ class StatementViewModel(app: Application) : AndroidViewModel(app) {
     var state: FinancialStatement by mutableStateOf(repo.load())
         private set
 
-    private val maxHistory = 100
+    private val maxHistory = StateRepository.MAX_HISTORY
 
     /**
      * Центральная точка изменения состояния: снимок для отмены, запись в журнал,
      * автосохранение. Любое действие проходит через неё.
+     *
+     * ВАЖНО: снимок кодирует состояние БЕЗ истории. Иначе каждый снимок
+     * содержал бы всю историю, а каждая её запись — свой снимок со всей
+     * предыдущей историей: размер JSON удваивался бы с каждым ходом
+     * (экспоненциальный рост → подвисание и вылет на длинной игре).
      */
     fun edit(title: String, amount: Long = 0, transform: (FinancialStatement) -> FinancialStatement) {
         val before = state
-        val snapshot = repo.encode(before)
+        val snapshot = repo.encode(before.copy(history = emptyList()))
         val changed = transform(before)
         val tx = Transaction(
             id = changed.nextId,
@@ -49,15 +56,25 @@ class StatementViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun undo() {
-        val last = state.history.lastOrNull() ?: return
-        val restored = repo.decode(last.snapshotJson)
-            .copy(history = state.history.dropLast(1))
+        val history = state.history
+        val last = history.lastOrNull() ?: return
+        val restored = runCatching { repo.decode(last.snapshotJson) }
+            .getOrNull()
+            ?.copy(history = history.dropLast(1))
+            ?: state.copy(history = history.dropLast(1))
         state = restored
         repo.save(restored)
     }
 
     fun resetAll() {
         val fresh = FinancialStatement()
+        state = fresh
+        repo.save(fresh)
+    }
+
+    /** Загрузка одной из преднастроенных профессий — новый старт игры. */
+    fun loadProfession(p: Profession) {
+        val fresh = p.toStatement()
         state = fresh
         repo.save(fresh)
     }
@@ -80,6 +97,7 @@ class StatementViewModel(app: Application) : AndroidViewModel(app) {
         strikePrice: Long = 0,
     ) {
         val total = shares * pricePerShare
+        // По шорту деньги от продажи приходят на счёт, по остальным — уходят.
         val cashDelta = if (type == StockType.SHORT) total else -total
         edit("Покупка: $symbol ×$shares", cashDelta) {
             it.copy(
@@ -98,17 +116,34 @@ class StatementViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Закрытие позиции по текущей цене (продажа/выкуп/исполнение опциона). */
-    fun closeStock(id: Long, currentPrice: Long) {
+    /**
+     * Закрытие позиции по текущей цене. Можно закрыть часть:
+     * [sharesToClose] = 0 или ≥ количества → закрыть полностью.
+     */
+    fun closeStock(id: Long, currentPrice: Long, sharesToClose: Long = 0L) {
         val h = state.stocks.firstOrNull { it.id == id } ?: return
+        val n = if (sharesToClose <= 0L || sharesToClose >= h.shares) h.shares else sharesToClose
         val delta = when (h.type) {
-            StockType.LONG -> h.shares * currentPrice
-            StockType.SHORT -> -(h.shares * currentPrice)
-            StockType.CALL_OPTION -> Calculator.callOptionPayoff(h, currentPrice)
-            StockType.PUT_OPTION -> Calculator.putOptionPayoff(h, currentPrice)
+            StockType.LONG -> n * currentPrice
+            StockType.SHORT -> -(n * currentPrice)
+            StockType.CALL_OPTION -> maxOf(0L, currentPrice - h.strikePrice) * n
+            StockType.PUT_OPTION -> maxOf(0L, h.strikePrice - currentPrice) * n
         }
-        edit("Закрытие: ${h.symbol}", delta) {
-            it.copy(cash = it.cash + delta, stocks = it.stocks.filterNot { s -> s.id == id })
+        val partial = n < h.shares
+        val verb = when (h.type) {
+            StockType.LONG -> "Продажа"
+            StockType.SHORT -> "Откуп шорта"
+            StockType.CALL_OPTION, StockType.PUT_OPTION -> "Исполнение опциона"
+        }
+        edit("$verb: ${h.symbol} ×$n", delta) {
+            it.copy(
+                cash = it.cash + delta,
+                stocks = if (partial) {
+                    it.stocks.map { s -> if (s.id == id) s.copy(shares = s.shares - n) else s }
+                } else {
+                    it.stocks.filterNot { s -> s.id == id }
+                },
+            )
         }
     }
 

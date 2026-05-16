@@ -1,6 +1,8 @@
 package ru.cashflow.statement.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ru.cashflow.statement.model.PRESET_PROFESSIONS
+import ru.cashflow.statement.model.Profession
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +55,8 @@ fun ProfileScreen(vm: StatementViewModel, onBack: () -> Unit) {
     var retailDebt by remember { mutableLongStateOf(s.retailDebt) }
     var cash by remember { mutableLongStateOf(s.cash) }
 
+    var pendingPreset by remember { mutableStateOf<Profession?>(null) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -70,32 +77,53 @@ fun ProfileScreen(vm: StatementViewModel, onBack: () -> Unit) {
         Column(
             Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()),
         ) {
-            SectionCard("Игрок") {
+            SectionCard("Выберите профессию") {
+                Text(
+                    "8 готовых карточек из коробки. Выбор начинает новую игру с её " +
+                        "данными. Ниже можно ввести свою профессию вручную.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PRESET_PROFESSIONS.forEach { p ->
+                        FilterChip(
+                            selected = profession == p.title,
+                            onClick = { pendingPreset = p },
+                            label = { Text("${p.title} · ${money(p.salary)}") },
+                        )
+                    }
+                }
+            }
+
+            SectionCard("Своя профессия (карточка вручную)") {
                 TextInputField("Имя игрока", playerName, { playerName = it })
                 TextInputField("Профессия", profession, { profession = it })
                 TextInputField("Мечта", dream, { dream = it })
             }
-            SectionCard("Доходы и расходы из карточки профессии") {
-                NumberField("Зарплата", salary, { salary = it })
-                NumberField("Проценты (сбережения)", interest, { interest = it })
-                NumberField("Налоги", taxes, { taxes = it })
-                NumberField("Выплаты по ипотеке и аренда", homePayment, { homePayment = it })
-                NumberField("Выплаты по кредиту на образование", eduPayment, { eduPayment = it })
-                NumberField("Выплаты по кредиту на автомобиль", carPayment, { carPayment = it })
-                NumberField("Выплаты по кредитной карточке", creditCardPayment, { creditCardPayment = it })
-                NumberField("Выплаты по мелким кредитам", retailPayment, { retailPayment = it })
-                NumberField("Прочие расходы", otherExpenses, { otherExpenses = it })
-                NumberField("Расходы на одного ребёнка", perChildExpense, { perChildExpense = it })
+            SectionCard("Доходы") {
+                NumberField("Заработок", salary, { salary = it })
+                NumberField("Капиталовложения / проценты", interest, { interest = it })
             }
-            SectionCard("Пассивы из карточки профессии") {
-                NumberField("Ипотека", homeMortgage, { homeMortgage = it })
+            SectionCard("Расходы (из карточки профессии)") {
+                NumberField("Налоги", taxes, { taxes = it })
+                NumberField("Оплата заклада/аренды", homePayment, { homePayment = it })
+                NumberField("Опл. кредита на обучение", eduPayment, { eduPayment = it })
+                NumberField("Опл. кредита на автомобиль", carPayment, { carPayment = it })
+                NumberField("Оплата кредитной карточки", creditCardPayment, { creditCardPayment = it })
+                NumberField("Розничные расходы", retailPayment, { retailPayment = it })
+                NumberField("Другие расходы", otherExpenses, { otherExpenses = it })
+                NumberField("Детские расходы (на 1 ребёнка)", perChildExpense, { perChildExpense = it })
+            }
+            SectionCard("Пассивы (из карточки профессии)") {
+                NumberField("Закладная на дом", homeMortgage, { homeMortgage = it })
                 NumberField("Кредит на образование", eduLoan, { eduLoan = it })
                 NumberField("Кредит на автомобиль", carLoan, { carLoan = it })
-                NumberField("Долг по кредитной карточке", creditCardDebt, { creditCardDebt = it })
-                NumberField("Мелкие кредиты", retailDebt, { retailDebt = it })
+                NumberField("По кредитным картам", creditCardDebt, { creditCardDebt = it })
+                NumberField("Розничный долг", retailDebt, { retailDebt = it })
             }
-            SectionCard("Стартовые наличные") {
-                NumberField("Сбережения / наличные", cash, { cash = it })
+            SectionCard("Активы") {
+                NumberField("Сбережения (стартовые наличные)", cash, { cash = it })
             }
             Button(
                 onClick = {
@@ -115,5 +143,16 @@ fun ProfileScreen(vm: StatementViewModel, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
             ) { Text("Сохранить профиль") }
         }
+    }
+
+    pendingPreset?.let { p ->
+        ConfirmDialog(
+            title = "Начать за «${p.title}»?",
+            message = "Будет начата новая игра с данными карточки «${p.title}» " +
+                "(заработок ${money(p.salary)}, сбережения ${money(p.savings)}). " +
+                "Текущий прогресс будет сброшен.",
+            onConfirm = { vm.loadProfession(p); onBack() },
+            onClose = { pendingPreset = null },
+        )
     }
 }

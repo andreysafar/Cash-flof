@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.cashflow.statement.logic.Calculator
+import ru.cashflow.statement.model.StockType
+import ru.cashflow.statement.ui.theme.Brand
 
 private enum class Dlg {
     BUY_STOCK, CLOSE_STOCK, SPLIT_STOCK, BUY_PROPERTY, SELL_PROPERTY,
@@ -50,6 +52,7 @@ fun StatementScreen(
     onOpenHistory: () -> Unit,
     onOpen202: () -> Unit,
     onOpenFastTrack: () -> Unit,
+    onOpenHelp: () -> Unit,
 ) {
     val s = vm.state
     var dialog by remember { mutableStateOf<Dlg?>(null) }
@@ -59,6 +62,8 @@ fun StatementScreen(
     val totalExpenses = Calculator.totalExpenses(s)
     val cashFlow = Calculator.monthlyCashFlow(s)
     val canExit = Calculator.canExitRatRace(s)
+    val longStocks = s.stocks.filter { it.type == StockType.LONG }
+    val has202 = s.stocks.any { it.type != StockType.LONG }
 
     Scaffold(
         topBar = {
@@ -70,12 +75,9 @@ fun StatementScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
-                        if (s.playerName.isNotBlank() || s.dream.isNotBlank()) {
-                            Text(
-                                listOf(s.playerName, s.dream).filter { it.isNotBlank() }.joinToString(" • "),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
+                        val sub = listOf(s.playerName, s.dream).filter { it.isNotBlank() }
+                            .joinToString(" • ").ifBlank { Brand.TAGLINE }
+                        Text(sub, style = MaterialTheme.typography.bodyMedium)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -89,8 +91,9 @@ fun StatementScreen(
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Профессия / профиль") }, onClick = { menu = false; onOpenProfile() })
+                        DropdownMenuItem(text = { Text("Подсказки правил") }, onClick = { menu = false; onOpenHelp() })
                         DropdownMenuItem(text = { Text("Журнал операций") }, onClick = { menu = false; onOpenHistory() })
-                        DropdownMenuItem(text = { Text("Опционы / шорт (202)") }, onClick = { menu = false; onOpen202() })
+                        DropdownMenuItem(text = { Text("Расширение 202 (шорт/опционы)") }, onClick = { menu = false; onOpen202() })
                         DropdownMenuItem(text = { Text("Скоростная дорожка") }, onClick = { menu = false; onOpenFastTrack() })
                         DropdownMenuItem(text = { Text("Сбросить отчёт") }, onClick = { menu = false; dialog = Dlg.RESET })
                     }
@@ -107,11 +110,10 @@ fun StatementScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Месячный денежный поток (получка)", color = MaterialTheme.colorScheme.onPrimary)
+                    Text("Ежемесячный денежный поток (получка)", color = MaterialTheme.colorScheme.onPrimary)
                     Text(
                         money(cashFlow),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.displaySmall,
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
                     Row(
@@ -124,7 +126,10 @@ fun StatementScreen(
                     Button(
                         onClick = { vm.payday() },
                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary,
+                        ),
                     ) { Text("ПОЛУЧКА  (+${money(cashFlow)})", fontWeight = FontWeight.Bold) }
                 }
             }
@@ -133,7 +138,7 @@ fun StatementScreen(
             Card(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (canExit) MaterialTheme.colorScheme.secondary
+                    containerColor = if (canExit) MaterialTheme.colorScheme.secondaryContainer
                     else MaterialTheme.colorScheme.surfaceVariant,
                 ),
             ) {
@@ -161,8 +166,8 @@ fun StatementScreen(
 
             // --- Доходы ---
             SectionCard("Доходы") {
-                StatRow("Зарплата", s.salary)
-                StatRow("Проценты", s.interest)
+                StatRow("Заработок", s.salary)
+                StatRow("Капиталовложения / проценты", s.interest)
                 StatRow("Дивиденды (акции)", Calculator.dividends(s))
                 s.realEstate.forEach { StatRow("Недвиж.: ${it.name}", it.cashFlow) }
                 s.businesses.forEach { StatRow("Бизнес: ${it.name}", it.cashFlow) }
@@ -173,48 +178,52 @@ fun StatementScreen(
             // --- Расходы ---
             SectionCard("Расходы") {
                 StatRow("Налоги", s.taxes)
-                StatRow("Ипотека и арендная плата", s.homePayment)
-                StatRow("Кредит на образование", s.eduPayment)
-                StatRow("Кредит на автомобиль", s.carPayment)
-                StatRow("Кредитная карточка", s.creditCardPayment)
-                StatRow("Мелкие кредиты", s.retailPayment)
-                StatRow("Прочие расходы", s.otherExpenses)
-                StatRow("Расходы на детей (${s.childrenCount})", Calculator.childrenExpense(s))
-                StatRow("Оплата кредита банка", Calculator.bankLoanPayment(s))
+                StatRow("Оплата заклада/аренды", s.homePayment)
+                StatRow("Опл. кредита на обучение", s.eduPayment)
+                StatRow("Опл. кредита на автомобиль", s.carPayment)
+                StatRow("Оплата кредитной карточки", s.creditCardPayment)
+                StatRow("Розничные расходы", s.retailPayment)
+                StatRow("Другие расходы", s.otherExpenses)
+                StatRow("Детские расходы (${s.childrenCount})", Calculator.childrenExpense(s))
+                StatRow("Платёж по кредиту банка", Calculator.bankLoanPayment(s))
                 StatRow("Общий расход", totalExpenses, strong = true)
             }
 
             // --- Активы ---
             SectionCard("Активы") {
                 StatRow("Сбережения (наличные)", s.cash)
-                s.stocks.forEach {
-                    StatRow(
-                        "${stockTypeLabel(it.type)} ${it.symbol} ×${it.shares}" +
-                            if (it.turnsLeft > 0) " (кругов: ${it.turnsLeft})" else "",
-                        it.shares * it.pricePerShare,
-                    )
+                longStocks.forEach {
+                    StatRow("Акции ${it.symbol} ×${it.shares}", it.shares * it.pricePerShare)
                 }
                 s.realEstate.forEach { StatRow("Недвиж.: ${it.name} (взнос ${money(it.downPayment)})", it.price) }
                 s.businesses.forEach { StatRow("Бизнес: ${it.name} (взнос ${money(it.downPayment)})", it.price) }
+                if (has202) {
+                    Text(
+                        "Позиции 202 (шорт/опционы) — в меню «Расширение 202».",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
             }
 
             // --- Пассивы ---
             SectionCard("Пассивы") {
-                StatRow("Ипотека", s.homeMortgage)
+                StatRow("Закладная на дом", s.homeMortgage)
                 StatRow("Кредит на образование", s.eduLoan)
                 StatRow("Кредит на автомобиль", s.carLoan)
-                StatRow("Долг по кредитной карточке", s.creditCardDebt)
-                StatRow("Мелкие кредиты", s.retailDebt)
+                StatRow("По кредитным картам", s.creditCardDebt)
+                StatRow("Розничный долг", s.retailDebt)
                 s.realEstate.filter { it.mortgage > 0 }.forEach { StatRow("Ипотека: ${it.name}", it.mortgage) }
                 s.businesses.filter { it.mortgage > 0 }.forEach { StatRow("Пассив бизнеса: ${it.name}", it.mortgage) }
                 StatRow("Кредит банка", s.bankLoan)
             }
 
-            // --- Быстрые действия ---
+            // --- Быстрые действия (игра 101) ---
             SectionCard("Быстрые действия") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionChip("Купить акции") { dialog = Dlg.BUY_STOCK }
-                    ActionChip("Закрыть позицию") { dialog = Dlg.CLOSE_STOCK }
+                    ActionChip("Продать акции") { dialog = Dlg.CLOSE_STOCK }
                     ActionChip("Сплит акций") { dialog = Dlg.SPLIT_STOCK }
                     ActionChip("Купить актив") { dialog = Dlg.BUY_PROPERTY }
                     ActionChip("Продать актив") { dialog = Dlg.SELL_PROPERTY }
@@ -225,8 +234,22 @@ fun StatementScreen(
                     ActionChip("Благотвор.") { dialog = Dlg.CHARITY }
                     ActionChip("Увольнение") { dialog = Dlg.DOWNSIZED }
                     ActionChip("Наличные") { dialog = Dlg.SET_CASH }
-                    ActionChip("Ход (опционы −1)") { vm.tickOptionTurns() }
                     ActionChip("Отмена") { vm.undo() }
+                }
+            }
+
+            // --- Расширение 202 ---
+            SectionCard("Расширение 202") {
+                Text(
+                    "Короткие продажи и опционы CALL/PUT — отдельный раздел, " +
+                        "чтобы не путать с обычной игрой 101.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onOpen202) { Text("Открыть раздел 202") }
+                    OutlinedButton(onClick = { vm.tickOptionTurns() }) { Text("Ход (−1 опционам)") }
                 }
             }
 
