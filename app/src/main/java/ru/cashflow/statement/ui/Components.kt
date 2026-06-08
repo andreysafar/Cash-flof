@@ -1,22 +1,38 @@
 package ru.cashflow.statement.ui
 
-import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,11 +41,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlinx.coroutines.delay
 import kotlin.math.absoluteValue
 
 /** Денежный формат: $12 500 / −$3 400. */
@@ -45,27 +64,41 @@ fun money(v: Long): String {
 }
 
 /**
- * Денежное значение с анимацией счётчика при изменении — даёт явную
- * визуальную обратную связь, что действие совершено.
+ * Денежное значение с заметной анимацией при изменении: счётчик докручивается
+ * и значение коротко «пульсирует» (увеличивается и пружинит назад) — явная
+ * обратная связь, что действие совершено.
  */
 @Composable
 fun AnimatedMoney(
     value: Long,
     modifier: Modifier = Modifier,
-    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineMedium,
+    style: TextStyle = MaterialTheme.typography.headlineMedium,
     color: Color = Color.Unspecified,
 ) {
-    // Анимируем в пределах Int, чтобы не переполниться на огромных суммах.
     val clamped = value.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
     val animated by animateIntAsState(
         targetValue = clamped,
-        animationSpec = tween(durationMillis = 550, easing = LinearOutSlowInEasing),
+        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
         label = "money",
     )
     val shown = if (clamped.toLong() == value) animated.toLong() else value
+
+    var prev by remember { mutableStateOf(value) }
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(value) {
+        if (value != prev) {
+            prev = value
+            scale.snapTo(1f)
+            scale.animateTo(1.22f, tween(140, easing = FastOutSlowInEasing))
+            scale.animateTo(1f, spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessLow))
+        }
+    }
     Text(
         money(shown),
-        modifier = modifier,
+        modifier = modifier.graphicsLayer {
+            scaleX = scale.value
+            scaleY = scale.value
+        },
         style = style,
         color = color,
         maxLines = 1,
@@ -133,15 +166,122 @@ fun StatRow(
     }
 }
 
-/** Современная кнопка быстрого действия — крупная тач-цель, скруглённая. */
+/** Описание кнопки быстрого действия для сетки. */
+data class QuickAction(
+    val label: String,
+    val emphasized: Boolean = false,
+    val onClick: () -> Unit,
+)
+
+/** Современная кнопка быстрого действия — крупная тач-цель (≥56dp), скруглённая. */
 @Composable
-fun ActionButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun ActionButton(
+    label: String,
+    modifier: Modifier = Modifier,
+    emphasized: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val colors = if (emphasized) {
+        ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+    } else {
+        ButtonDefaults.filledTonalButtonColors()
+    }
     FilledTonalButton(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 48.dp),
-        shape = RoundedCornerShape(14.dp),
+        modifier = modifier.heightIn(min = 56.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = colors,
     ) {
-        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            label,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+/** Сетка крупных кнопок действий: [columns] в ряд, равная ширина. */
+@Composable
+fun ActionGrid(actions: List<QuickAction>, columns: Int = 2) {
+    actions.chunked(columns).forEach { rowItems ->
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            rowItems.forEach { a ->
+                ActionButton(a.label, Modifier.weight(1f), a.emphasized, a.onClick)
+            }
+            repeat(columns - rowItems.size) { Spacer(Modifier.weight(1f)) }
+        }
+    }
+}
+
+/**
+ * Крупное читаемое уведомление о совершённом действии: выезжает сверху,
+ * держится пару секунд и уезжает. Высокий контраст (тёмная плашка), сумма
+ * выделена цветом. Не перекрывается нижним рекламным баннером.
+ */
+@Composable
+fun ActionToast(event: ActionEvent?, onShown: () -> Unit, modifier: Modifier = Modifier) {
+    var visible by remember { mutableStateOf(false) }
+    var shown by remember { mutableStateOf<ActionEvent?>(null) }
+    LaunchedEffect(event?.id) {
+        val e = event ?: return@LaunchedEffect
+        shown = e
+        visible = true
+        delay(2000)
+        visible = false
+        delay(250)
+        onShown()
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically { -it } + fadeIn(),
+        exit = slideOutVertically { -it } + fadeOut(),
+        modifier = modifier,
+    ) {
+        shown?.let { e ->
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                shadowElevation = 10.dp,
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.inversePrimary,
+                    )
+                    Column {
+                        Text(
+                            e.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (e.amount != 0L) {
+                            Text(
+                                (if (e.amount > 0) "+" else "") + money(e.amount),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = if (e.amount < 0) Color(0xFFFFB4AB) else Color(0xFF7FF0C8),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

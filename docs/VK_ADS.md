@@ -1,14 +1,36 @@
 # Реклама VK Рекламы (VK Ad SDK)
 
-В приложении подключены **три формата** через [VK Ad SDK](https://ads.vk.com/help/partner/partner_integration/partner_android/partner_android_integration) (бывший myTarget):
+## MVP: только баннер
 
-| Формат | Где показывается | Конфиг |
-|--------|------------------|--------|
-| **Баннер 320×50** | Постоянно внизу всех экранов | `BANNER_SLOT_ID` = 2021509 |
-| **Нативный** | Всплывает через 7 с после игрового хода, показывается 5 с | `NATIVE_SLOT_ID` = 2021512 |
-| **Межстраничная (Interstitial)** | После смены профессии и сброса отчёта | `INTERSTITIAL_SLOT_ID` (пока 0) |
+Для MVP включён **один формат** — баннер 320×50 внизу экрана. Это осознанное
+решение по юзабилити: нативный оверлей всплывал после **каждого** хода (а за
+партию их десятки) и сильно мешал игре, а interstitial требует отдельного блока.
+Баннер приносит доход постоянно и почти не мешает. Реализация —
+`VkAdController.kt` (минимум API: `MyTargetView.setSlotId/load/destroy`, без
+слушателей с версионно-зависимыми сигнатурами).
 
-Реализация: `VkAdController.kt`, оверлей — `NativeAdOverlay.kt`. Ход отслеживается через `lastEvent` в `CashflowApp`.
+| Формат | Статус | Конфиг |
+|--------|--------|--------|
+| **Баннер 320×50** | ✅ включён | `BANNER_SLOT_ID` = 2021509 |
+| **Нативный** | ⏸ отключён в MVP | `NATIVE_SLOT_ID` = 2021512 |
+| **Межстраничная (Interstitial)** | ⏸ отключён | `INTERSTITIAL_SLOT_ID` (0) |
+
+### Как вернуть нативную / interstitial рекламу
+
+Точки расширения сохранены в интерфейсе `AdController`
+(`onMoveCompleted`, `NativeAdOverlay`, `onInterstitialMoment`) — сейчас в
+`VkAdController` это пустые реализации. Чтобы вернуть форматы:
+
+1. Реализуйте слушатели myTarget **точно по сигнатурам вашей версии SDK**
+   (5.45.3). Прошлая версия падала из-за неверных сигнатур: у
+   `InterstitialAd.InterstitialAdListener` появился `onFailedToShow`, а у
+   нативного слушателя — другой набор методов. Сверяйтесь с автодополнением IDE
+   после Gradle Sync.
+2. Для нативного оверлея делайте локальную копию из `MutableState`
+   (`val ad = activeNativeAd.value ?: return`) — иначе smart-cast по
+   delegated-property не работает.
+3. Дёргайте `onMoveCompleted` из `CashflowApp` (уже подключено) и `NativeAdOverlay`
+   из `MainActivity` (уже подключено).
 
 ## Что уже сделано в коде
 
