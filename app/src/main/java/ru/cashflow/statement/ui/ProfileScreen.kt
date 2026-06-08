@@ -27,7 +27,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import android.app.Activity
+import ru.cashflow.statement.ads.LocalAdController
 import ru.cashflow.statement.model.PRESET_PROFESSIONS
 import ru.cashflow.statement.model.Profession
 
@@ -35,6 +38,8 @@ import ru.cashflow.statement.model.Profession
 @Composable
 fun ProfileScreen(vm: StatementViewModel, onBack: () -> Unit) {
     val s = vm.state
+    val ad = LocalAdController.current
+    val activity = LocalContext.current as? Activity
     var playerName by remember { mutableStateOf(s.playerName) }
     var profession by remember { mutableStateOf(s.profession) }
     var dream by remember { mutableStateOf(s.dream) }
@@ -151,7 +156,7 @@ fun ProfileScreen(vm: StatementViewModel, onBack: () -> Unit) {
             message = "Будет начата новая игра с данными карточки «${p.title}» " +
                 "(заработок ${money(p.salary)}, сбережения ${money(p.savings)}). " +
                 "Текущий прогресс будет сброшен.",
-            onConfirm = { vm.loadProfession(p); onBack() },
+            onConfirm = { vm.loadProfession(p); ad.onInterstitialMoment(activity); onBack() },
             onClose = { pendingPreset = null },
         )
     }

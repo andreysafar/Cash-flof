@@ -43,8 +43,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.app.Activity
+import ru.cashflow.statement.ads.LocalAdController
 import ru.cashflow.statement.logic.Calculator
 import ru.cashflow.statement.model.Property
 import ru.cashflow.statement.model.StockHolding
@@ -67,6 +70,8 @@ fun StatementScreen(
     onOpenHelp: () -> Unit,
 ) {
     val s = vm.state
+    val ad = LocalAdController.current
+    val activity = LocalContext.current as? Activity
     var dialog by remember { mutableStateOf<Dlg?>(null) }
     var editProp by remember { mutableStateOf<Pair<Boolean, Property>?>(null) }
     var editStock by remember { mutableStateOf<StockHolding?>(null) }
@@ -375,7 +380,7 @@ fun StatementScreen(
         Dlg.RESET -> ConfirmDialog(
             "Сбросить отчёт",
             "Все данные финансового отчёта будут удалены. Продолжить?",
-            { vm.resetAll() }, { dialog = null },
+            { vm.resetAll(); ad.onInterstitialMoment(activity) }, { dialog = null },
         )
         null -> Unit
     }

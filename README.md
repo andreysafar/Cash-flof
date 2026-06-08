@@ -180,11 +180,26 @@ AndroidX, Compose и при необходимости SDK Platform 35. Нуже
 | Gradle | 8.14.3 (через wrapper) |
 | Сеть | не используется (нет разрешения INTERNET) |
 
+## Публикация на RuStore и реклама
+
+- Подготовка релиза (подпись, версия, иконка, сборка AAB, карточка) —
+  `docs/RUSTORE_PUBLISH.md`.
+- Подключение рекламы RuStore Ads (баннер + межстраничная) —
+  `docs/RUSTORE_ADS.md`. По умолчанию показывается **плейсхолдер-фрейм**
+  баннера внизу экрана, приложение работает офлайн; реальная реклама
+  включается отдельными шагами (репозиторий SDK, разрешение INTERNET, ID
+  блоков, класс `RustoreAdController`).
+- Политика конфиденциальности — `docs/PRIVACY.md`.
+- Подпись: положите `keystore.properties` в корень (см.
+  `keystore.properties.sample`); release-сборка подхватит его автоматически.
+
 ## Структура
 
 ```
 app/src/main/java/ru/cashflow/statement/
-  MainActivity.kt
+  MainActivity.kt          # тема, рекламный фрейм, провайдер рекламы
+  ads/AdController.kt      # абстракция рекламы (плейсхолдер/RuStore Ads)
+  ads/AdConfig.kt          # ID блоков и выбор контроллера
   model/Models.kt          # данные финансового отчёта (kotlinx.serialization)
   logic/Calculator.kt      # ЕДИНЫЙ источник правил расчёта
   data/StateRepository.kt  # офлайн-хранилище (JSON в filesDir)

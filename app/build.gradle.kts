@@ -1,9 +1,21 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// Подпись релиза: данные берём из keystore.properties в корне проекта
+// (файл НЕ коммитится — см. .gitignore). Если его нет, релиз подписывается
+// debug-ключом, чтобы сборка не падала при локальной проверке.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) FileInputStream(keystorePropsFile).use { load(it) }
+}
+val hasReleaseKeystore = keystorePropsFile.exists()
 
 android {
     namespace = "ru.cashflow.statement"
@@ -17,6 +29,17 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -24,6 +47,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release")
+            else signingConfigs.getByName("debug")
         }
     }
 
@@ -41,6 +66,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
