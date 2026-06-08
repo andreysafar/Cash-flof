@@ -1,24 +1,40 @@
 package ru.cashflow.statement.ads
 
+import android.content.Context
+
 /**
- * Точка конфигурации рекламы для публикации на RuStore.
+ * Конфигурация рекламы VK Рекламы (VK Ad SDK / myTarget).
  *
- * Пока подключён плейсхолдер (видимый фрейм, без сети) — приложение собирается
- * и работает офлайн. Чтобы включить реальную рекламу RuStore Ads:
- *   1. Выполните шаги из docs/RUSTORE_ADS.md (репозиторий, зависимость,
- *      разрешение INTERNET, класс RustoreAdController).
- *   2. Подставьте сюда реальные ID рекламных блоков из кабинета RuStore Ads.
- *   3. В [controller] верните RustoreAdController() для релиза.
+ * Три формата:
+ *  - баннер 320×50 — постоянно внизу экрана ([BANNER_SLOT_ID]);
+ *  - нативный — всплывает через [NATIVE_AD_DELAY_MS] после хода ([NATIVE_SLOT_ID]);
+ *  - межстраничная (interstitial) — на ключевых действиях ([INTERSTITIAL_SLOT_ID]).
+ *
+ * ID блоков берутся из кабинета VK Рекламы → Приложения → Рекламные блоки.
+ * Тип интеграции блока должен быть «SDK» (прямая интеграция).
  */
 object AdConfig {
 
-    // TODO: заменить на реальные ID блоков из кабинета RuStore Ads.
-    const val BANNER_AD_UNIT_ID = "YOUR_RUSTORE_BANNER_ID"
-    const val INTERSTITIAL_AD_UNIT_ID = "YOUR_RUSTORE_INTERSTITIAL_ID"
+    /** Баннер 320×50, тестовый блок от 2026-06-08. */
+    const val BANNER_SLOT_ID = 2021509
+
+    /** Нативный блок, тестовый режим от 2026-06-08. */
+    const val NATIVE_SLOT_ID = 2021512
+
+    /** Задержка перед показом нативной рекламы после хода (мс). */
+    const val NATIVE_AD_DELAY_MS = 7_000L
+
+    /** Длительность показа нативной рекламы (мс). */
+    const val NATIVE_AD_DISPLAY_MS = 5_000L
 
     /**
-     * Активный контроллер рекламы. Сейчас — плейсхолдер (фрейм виден, сети нет).
-     * После интеграции SDK замените на `RustoreAdController(...)`.
+     * Межстраничная реклама. Создайте блок формата Interstitial в кабинете VK
+     * (тип интеграции SDK) и подставьте ID сюда. Пока 0 — interstitial отключён.
      */
-    fun controller(): AdController = PlaceholderAdController
+    const val INTERSTITIAL_SLOT_ID = 0
+
+    /** Минимум «моментов» между показами interstitial (смена профессии, сброс). */
+    const val MIN_MOVES_BETWEEN_INTERSTITIALS = 2
+
+    fun controller(context: Context): AdController = VkAdController(context.applicationContext)
 }

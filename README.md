@@ -178,17 +178,14 @@ AndroidX, Compose и при необходимости SDK Platform 35. Нуже
 | Android Gradle Plugin | 8.7.3 |
 | Kotlin | 2.0.21 |
 | Gradle | 8.14.3 (через wrapper) |
-| Сеть | не используется (нет разрешения INTERNET) |
+| Сеть | INTERNET — для рекламы VK Ad SDK; игровые данные офлайн |
 
 ## Публикация на RuStore и реклама
 
 - Подготовка релиза (подпись, версия, иконка, сборка AAB, карточка) —
   `docs/RUSTORE_PUBLISH.md`.
-- Подключение рекламы RuStore Ads (баннер + межстраничная) —
-  `docs/RUSTORE_ADS.md`. По умолчанию показывается **плейсхолдер-фрейм**
-  баннера внизу экрана, приложение работает офлайн; реальная реклама
-  включается отдельными шагами (репозиторий SDK, разрешение INTERNET, ID
-  блоков, класс `RustoreAdController`).
+- Реклама VK Рекламы (баннер + нативный оверлей + межстраничная) —
+  `docs/VK_ADS.md`. ID блоков в `AdConfig.kt`.
 - Политика конфиденциальности — `docs/PRIVACY.md`.
 - Подпись: положите `keystore.properties` в корень (см.
   `keystore.properties.sample`); release-сборка подхватит его автоматически.
@@ -198,8 +195,9 @@ AndroidX, Compose и при необходимости SDK Platform 35. Нуже
 ```
 app/src/main/java/ru/cashflow/statement/
   MainActivity.kt          # тема, рекламный фрейм, провайдер рекламы
-  ads/AdController.kt      # абстракция рекламы (плейсхолдер/RuStore Ads)
-  ads/AdConfig.kt          # ID блоков и выбор контроллера
+  ads/AdController.kt      # абстракция рекламы
+  ads/VkAdController.kt    # VK Ad SDK: баннер + interstitial
+  ads/AdConfig.kt          # slot ID блоков из кабинета VK
   model/Models.kt          # данные финансового отчёта (kotlinx.serialization)
   logic/Calculator.kt      # ЕДИНЫЙ источник правил расчёта
   data/StateRepository.kt  # офлайн-хранилище (JSON в filesDir)

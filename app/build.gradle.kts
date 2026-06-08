@@ -25,8 +25,8 @@ android {
         applicationId = "ru.cashflow.statement"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2.0"
     }
 
     signingConfigs {
@@ -85,6 +85,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    implementation(libs.mytarget.sdk)
+    implementation(libs.play.services.ads.identifier)
 
     testImplementation(libs.junit)
 }

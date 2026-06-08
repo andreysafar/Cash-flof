@@ -7,6 +7,8 @@ activityCompose = "1.9.3"
 composeBom = "2024.10.01"
 serialization = "1.7.3"
 junit = "4.13.2"
+mytarget = "5.45.3"
+playServicesAdsIdentifier = "18.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -23,6 +25,8 @@ androidx-compose-animation = { group = "androidx.compose.animation", name = "ani
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+mytarget-sdk = { group = "com.my.target", name = "mytarget-sdk", version.ref = "mytarget" }
+play-services-ads-identifier = { group = "com.google.android.gms", name = "play-services-ads-identifier", version.ref = "playServicesAdsIdentifier" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

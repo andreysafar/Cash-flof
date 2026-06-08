@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 /**
  * Абстракция рекламы. UI не знает о конкретной сети (RuStore Ads и т.п.) —
  * подключение SDK затрагивает только реализацию этого интерфейса.
- * Шаги включения реальной рекламы — в docs/RUSTORE_ADS.md.
+ * Реализация VK Ad SDK — [VkAdController]; настройка — docs/VK_ADS.md.
  */
 interface AdController {
     /** Рекламный фрейм-баннер внизу экрана: рисует баннер либо ничего. */
@@ -30,6 +30,16 @@ interface AdController {
 
     /** Предзагрузка объявлений (вызывается из MainActivity). */
     fun preload(activity: Activity?)
+
+    /** Игровой ход завершён — планирует показ нативной рекламы с задержкой. */
+    fun onMoveCompleted(activity: Activity?)
+
+    /** Всплывающая нативная реклама поверх контента (после задержки). */
+    @Composable
+    fun NativeAdOverlay(modifier: Modifier = Modifier)
+
+    /** Освобождение ресурсов SDK (onDestroy активности). */
+    fun dispose()
 }
 
 /** Заглушка: рекламы нет (по умолчанию, пока не подключён SDK). */
@@ -37,6 +47,9 @@ object NoOpAdController : AdController {
     @Composable override fun BannerFrame(modifier: Modifier) {}
     override fun onInterstitialMoment(activity: Activity?) {}
     override fun preload(activity: Activity?) {}
+    override fun onMoveCompleted(activity: Activity?) {}
+    @Composable override fun NativeAdOverlay(modifier: Modifier) {}
+    override fun dispose() {}
 }
 
 /**
@@ -67,6 +80,9 @@ object PlaceholderAdController : AdController {
 
     override fun onInterstitialMoment(activity: Activity?) {}
     override fun preload(activity: Activity?) {}
+    override fun onMoveCompleted(activity: Activity?) {}
+    @Composable override fun NativeAdOverlay(modifier: Modifier) {}
+    override fun dispose() {}
 }
 
 /** Доступ к рекламному контроллеру из любого экрана. */

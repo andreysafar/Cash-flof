@@ -8,3 +8,6 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 -keep,includedescriptorclasses class ru.cashflow.statement.model.**$$serializer { *; }
+
+# VK Ad SDK (myTarget)
+-keep class com.my.target.** { *; }

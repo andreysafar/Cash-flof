@@ -13,29 +13,42 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.Surface
 import ru.cashflow.statement.ads.AdConfig
+import ru.cashflow.statement.ads.AdController
 import ru.cashflow.statement.ads.LocalAdController
 import ru.cashflow.statement.ui.CashflowApp
 import ru.cashflow.statement.ui.theme.CashflowTheme
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var adController: AdController
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        adController = AdConfig.controller(applicationContext)
+        adController.preload(this)
         setContent {
             CashflowTheme {
-                val ad = remember { AdConfig.controller() }
+                val ad = remember { adController }
                 CompositionLocalProvider(LocalAdController provides ad) {
-                    Surface(modifier = Modifier.fillMaxSize()) {
-                        Column(Modifier.fillMaxSize()) {
-                            Box(Modifier.weight(1f).fillMaxWidth()) {
-                                CashflowApp()
+                    Box(Modifier.fillMaxSize()) {
+                        Surface(modifier = Modifier.fillMaxSize()) {
+                            Column(Modifier.fillMaxSize()) {
+                                Box(Modifier.weight(1f).fillMaxWidth()) {
+                                    CashflowApp()
+                                }
+                                ad.BannerFrame(Modifier.fillMaxWidth())
                             }
-                            // Рекламный фрейм закреплён внизу, под всеми экранами.
-                            ad.BannerFrame(Modifier.fillMaxWidth())
                         }
+                        ad.NativeAdOverlay(Modifier.fillMaxSize())
                     }
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        adController.dispose()
+        super.onDestroy()
     }
 }
