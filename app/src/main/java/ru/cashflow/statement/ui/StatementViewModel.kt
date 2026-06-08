@@ -18,12 +18,21 @@ import ru.cashflow.statement.model.toStatement
 
 enum class DebtKind { HOME, EDU, CAR, CREDIT_CARD, RETAIL }
 
+/** Событие для всплывающего уведомления (Snackbar) о совершённом действии. */
+data class ActionEvent(val id: Long, val title: String, val amount: Long)
+
 class StatementViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = StateRepository(app)
 
     var state: FinancialStatement by mutableStateOf(repo.load())
         private set
+
+    /** Последнее действие — для анимированной обратной связи в UI. */
+    var lastEvent: ActionEvent? by mutableStateOf(null)
+        private set
+
+    private var eventSeq = 0L
 
     private val maxHistory = StateRepository.MAX_HISTORY
 
@@ -53,7 +62,10 @@ class StatementViewModel(app: Application) : AndroidViewModel(app) {
         )
         state = next
         repo.save(next)
+        lastEvent = ActionEvent(++eventSeq, title, amount)
     }
+
+    fun consumeEvent() { lastEvent = null }
 
     fun undo() {
         val history = state.history
@@ -155,12 +167,21 @@ class StatementViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun tickOptionTurns() {
-        if (state.stocks.none { it.turnsLeft > 0 }) return
-        edit("Ход: счётчик опционов −1") {
-            it.copy(stocks = it.stocks.map { s ->
-                if (s.turnsLeft > 0) s.copy(turnsLeft = s.turnsLeft - 1) else s
-            })
+    /**
+     * Прошёл один ход: уменьшаем счётчики благотворительности (бросок 2 кубиков)
+     * и срока действия опционов 202.
+     */
+    fun nextTurn() {
+        val hasCharity = state.charityTurnsLeft > 0
+        val hasOptions = state.stocks.any { it.turnsLeft > 0 }
+        if (!hasCharity && !hasOptions) return
+        edit("Следующий ход") {
+            it.copy(
+                charityTurnsLeft = (it.charityTurnsLeft - 1).coerceAtLeast(0),
+                stocks = it.stocks.map { s ->
+                    if (s.turnsLeft > 0) s.copy(turnsLeft = s.turnsLeft - 1) else s
+                },
+            )
         }
     }
 
@@ -178,6 +199,62 @@ class StatementViewModel(app: Application) : AndroidViewModel(app) {
             val p = Property(it.nextId, name, downPayment, price, cashFlow, mortgage)
             if (isBusiness) it.copy(cash = it.cash - downPayment, businesses = it.businesses + p)
             else it.copy(cash = it.cash - downPayment, realEstate = it.realEstate + p)
+        }
+    }
+
+    /** Изменение параметров объекта без движения денег (исправление ошибок ввода). */
+    fun editProperty(
+        isBusiness: Boolean,
+        id: Long,
+        name: String,
+        downPayment: Long,
+        price: Long,
+        cashFlow: Long,
+        mortgage: Long,
+    ) {
+        edit("Изменение: $name") {
+            val mapper: (Property) -> Property = { p ->
+                if (p.id == id) p.copy(
+                    name = name, downPayment = downPayment, price = price,
+                    cashFlow = cashFlow, mortgage = mortgage,
+                ) else p
+            }
+            if (isBusiness) it.copy(businesses = it.businesses.map(mapper))
+            else it.copy(realEstate = it.realEstate.map(mapper))
+        }
+    }
+
+    /** Удаление объекта-коррекция: без зачисления денег (в отличие от продажи). */
+    fun removeProperty(isBusiness: Boolean, id: Long) {
+        edit("Удаление объекта (коррекция)") {
+            if (isBusiness) it.copy(businesses = it.businesses.filterNot { p -> p.id == id })
+            else it.copy(realEstate = it.realEstate.filterNot { p -> p.id == id })
+        }
+    }
+
+    /** Изменение параметров позиции по ценным бумагам без движения денег. */
+    fun editStock(
+        id: Long,
+        symbol: String,
+        shares: Long,
+        pricePerShare: Long,
+        dividendPerShare: Long,
+        strikePrice: Long,
+    ) {
+        edit("Изменение: $symbol") {
+            it.copy(stocks = it.stocks.map { s ->
+                if (s.id == id) s.copy(
+                    symbol = symbol, shares = shares, pricePerShare = pricePerShare,
+                    dividendPerShare = dividendPerShare, strikePrice = strikePrice,
+                ) else s
+            })
+        }
+    }
+
+    /** Удаление позиции-коррекция: без движения денег. */
+    fun removeStock(id: Long) {
+        edit("Удаление позиции (коррекция)") {
+            it.copy(stocks = it.stocks.filterNot { s -> s.id == id })
         }
     }
 
@@ -237,8 +314,8 @@ class StatementViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun charity() {
-        val pay = Calculator.totalIncome(state) / 10
-        edit("Благотворительность (10% дохода)", -pay) {
+        val pay = Calculator.charityDonation(state)
+        edit("Благотворительность −10% дохода (3 хода по 2 кубика)", -pay) {
             it.copy(cash = it.cash - pay, charityTurnsLeft = 3)
         }
     }

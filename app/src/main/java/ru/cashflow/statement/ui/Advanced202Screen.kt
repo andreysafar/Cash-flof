@@ -75,9 +75,9 @@ fun Advanced202Screen(vm: StatementViewModel, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                 ) { Text("Открыть позицию 202") }
                 OutlinedButton(
-                    onClick = { vm.tickOptionTurns() },
+                    onClick = { vm.nextTurn() },
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                ) { Text("Ход (−1 опционам)") }
+                ) { Text("Следующий ход (−1 опционам/благотв.)") }
             }
 
             SectionCard("Опционы CALL (ставка на рост)") {

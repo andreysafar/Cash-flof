@@ -1,5 +1,10 @@
 package ru.cashflow.statement.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -24,10 +30,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.cashflow.statement.logic.Calculator
+import ru.cashflow.statement.model.Property
+import ru.cashflow.statement.model.StockHolding
 import ru.cashflow.statement.model.StockType
 import ru.cashflow.statement.ui.theme.Brand
 
@@ -56,6 +68,8 @@ fun StatementScreen(
 ) {
     val s = vm.state
     var dialog by remember { mutableStateOf<Dlg?>(null) }
+    var editProp by remember { mutableStateOf<Pair<Boolean, Property>?>(null) }
+    var editStock by remember { mutableStateOf<StockHolding?>(null) }
     var menu by remember { mutableStateOf(false) }
 
     val passive = Calculator.passiveIncome(s)
@@ -64,8 +78,27 @@ fun StatementScreen(
     val canExit = Calculator.canExitRatRace(s)
     val longStocks = s.stocks.filter { it.type == StockType.LONG }
     val has202 = s.stocks.any { it.type != StockType.LONG }
+    val optionsActive = s.stocks.any { it.turnsLeft > 0 }
+
+    // Всплывающее уведомление об успешном действии — явная обратная связь.
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(vm.lastEvent?.id) {
+        val e = vm.lastEvent ?: return@LaunchedEffect
+        val amount = if (e.amount != 0L) "  ${money(e.amount)}" else ""
+        snackbar.showSnackbar("${e.title}$amount")
+        vm.consumeEvent()
+    }
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(snackbar) { data ->
+                Snackbar(
+                    shape = RoundedCornerShape(14.dp),
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ) { Text(data.visuals.message) }
+            }
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -74,10 +107,11 @@ fun StatementScreen(
                             s.profession.ifBlank { "Профессия не задана" },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
                         )
                         val sub = listOf(s.playerName, s.dream).filter { it.isNotBlank() }
                             .joinToString(" • ").ifBlank { Brand.TAGLINE }
-                        Text(sub, style = MaterialTheme.typography.bodyMedium)
+                        Text(sub, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -107,25 +141,41 @@ fun StatementScreen(
             // --- Сводка: денежный поток + наличные ---
             Card(
                 Modifier.fillMaxWidth().padding(12.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
             ) {
-                Column(Modifier.padding(16.dp)) {
+                Column(Modifier.padding(20.dp)) {
                     Text("Ежемесячный денежный поток (получка)", color = MaterialTheme.colorScheme.onPrimary)
-                    Text(
-                        money(cashFlow),
+                    AnimatedMoney(
+                        cashFlow,
                         style = MaterialTheme.typography.displaySmall,
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
                     Row(
-                        Modifier.fillMaxWidth().padding(top = 6.dp),
+                        Modifier.fillMaxWidth().padding(top = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text("Наличные: ${money(s.cash)}", color = MaterialTheme.colorScheme.onPrimary)
-                        Text("Пассивный доход: ${money(passive)}", color = MaterialTheme.colorScheme.onPrimary)
+                        Column {
+                            Text("Наличные", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodyMedium)
+                            AnimatedMoney(
+                                s.cash,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
+                        Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                            Text("Пассивный доход", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodyMedium)
+                            AnimatedMoney(
+                                passive,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
                     }
                     Button(
                         onClick = { vm.payday() },
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondary,
                             contentColor = MaterialTheme.colorScheme.onSecondary,
@@ -134,9 +184,40 @@ fun StatementScreen(
                 }
             }
 
+            // --- Активные эффекты: благотворительность / опционы ---
+            AnimatedVisibility(
+                visible = s.charityTurnsLeft > 0 || optionsActive,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Card(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        if (s.charityTurnsLeft > 0) {
+                            Text(
+                                "🎲 Благотворительность активна: бросайте 2 кубика — " +
+                                    "ходов осталось ${s.charityTurnsLeft}",
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        if (optionsActive) {
+                            Text("⏳ Есть опционы со сроком действия — отметьте прошедший ход.")
+                        }
+                        OutlinedButton(
+                            onClick = { vm.nextTurn() },
+                            modifier = Modifier.padding(top = 8.dp),
+                        ) { Text("Следующий ход (−1)") }
+                    }
+                }
+            }
+
             // --- Индикатор выхода из крысиных бегов ---
             Card(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = if (canExit) MaterialTheme.colorScheme.secondaryContainer
                     else MaterialTheme.colorScheme.surfaceVariant,
@@ -153,6 +234,7 @@ fun StatementScreen(
                         Button(
                             onClick = { vm.exitToFastTrack(); onOpenFastTrack() },
                             modifier = Modifier.padding(top = 8.dp),
+                            shape = RoundedCornerShape(14.dp),
                         ) { Text("Выйти на скоростную дорожку") }
                     }
                     if (s.onFastTrack) {
@@ -169,8 +251,8 @@ fun StatementScreen(
                 StatRow("Заработок", s.salary)
                 StatRow("Капиталовложения / проценты", s.interest)
                 StatRow("Дивиденды (акции)", Calculator.dividends(s))
-                s.realEstate.forEach { StatRow("Недвиж.: ${it.name}", it.cashFlow) }
-                s.businesses.forEach { StatRow("Бизнес: ${it.name}", it.cashFlow) }
+                s.realEstate.forEach { p -> StatRow("Недвиж.: ${p.name}", p.cashFlow, onClick = { editProp = false to p }) }
+                s.businesses.forEach { p -> StatRow("Бизнес: ${p.name}", p.cashFlow, onClick = { editProp = true to p }) }
                 StatRow("Пассивный доход", passive, strong = true, highlight = true)
                 StatRow("Общий доход", Calculator.totalIncome(s), strong = true, highlight = true)
             }
@@ -191,18 +273,27 @@ fun StatementScreen(
 
             // --- Активы ---
             SectionCard("Активы") {
-                StatRow("Сбережения (наличные)", s.cash)
-                longStocks.forEach {
-                    StatRow("Акции ${it.symbol} ×${it.shares}", it.shares * it.pricePerShare)
+                StatRow("Сбережения (наличные)", s.cash, onClick = { dialog = Dlg.SET_CASH })
+                longStocks.forEach { h ->
+                    StatRow("Акции ${h.symbol} ×${h.shares}", h.shares * h.pricePerShare, onClick = { editStock = h })
                 }
-                s.realEstate.forEach { StatRow("Недвиж.: ${it.name} (взнос ${money(it.downPayment)})", it.price) }
-                s.businesses.forEach { StatRow("Бизнес: ${it.name} (взнос ${money(it.downPayment)})", it.price) }
+                s.realEstate.forEach { p ->
+                    StatRow("Недвиж.: ${p.name} (взнос ${money(p.downPayment)})", p.price, onClick = { editProp = false to p })
+                }
+                s.businesses.forEach { p ->
+                    StatRow("Бизнес: ${p.name} (взнос ${money(p.downPayment)})", p.price, onClick = { editProp = true to p })
+                }
+                Text(
+                    "Нажмите на строку актива, чтобы изменить или удалить.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
                 if (has202) {
                     Text(
                         "Позиции 202 (шорт/опционы) — в меню «Расширение 202».",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
             }
@@ -221,20 +312,20 @@ fun StatementScreen(
 
             // --- Быстрые действия (игра 101) ---
             SectionCard("Быстрые действия") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ActionChip("Купить акции") { dialog = Dlg.BUY_STOCK }
-                    ActionChip("Продать акции") { dialog = Dlg.CLOSE_STOCK }
-                    ActionChip("Сплит акций") { dialog = Dlg.SPLIT_STOCK }
-                    ActionChip("Купить актив") { dialog = Dlg.BUY_PROPERTY }
-                    ActionChip("Продать актив") { dialog = Dlg.SELL_PROPERTY }
-                    ActionChip("Кредит банка") { dialog = Dlg.BANK_LOAN }
-                    ActionChip("Погасить долг") { dialog = Dlg.REPAY_DEBT }
-                    ActionChip("Расход") { dialog = Dlg.DOODAD }
-                    ActionChip("Ребёнок") { vm.addChild() }
-                    ActionChip("Благотвор.") { dialog = Dlg.CHARITY }
-                    ActionChip("Увольнение") { dialog = Dlg.DOWNSIZED }
-                    ActionChip("Наличные") { dialog = Dlg.SET_CASH }
-                    ActionChip("Отмена") { vm.undo() }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionButton("Купить акции") { dialog = Dlg.BUY_STOCK }
+                    ActionButton("Продать акции") { dialog = Dlg.CLOSE_STOCK }
+                    ActionButton("Сплит акций") { dialog = Dlg.SPLIT_STOCK }
+                    ActionButton("Купить актив") { dialog = Dlg.BUY_PROPERTY }
+                    ActionButton("Продать актив") { dialog = Dlg.SELL_PROPERTY }
+                    ActionButton("Кредит банка") { dialog = Dlg.BANK_LOAN }
+                    ActionButton("Погасить долг") { dialog = Dlg.REPAY_DEBT }
+                    ActionButton("Расход") { dialog = Dlg.DOODAD }
+                    ActionButton("Ребёнок") { vm.addChild() }
+                    ActionButton("Благотвор.") { dialog = Dlg.CHARITY }
+                    ActionButton("Увольнение") { dialog = Dlg.DOWNSIZED }
+                    ActionButton("Наличные") { dialog = Dlg.SET_CASH }
+                    ActionButton("Отмена") { vm.undo() }
                 }
             }
 
@@ -248,12 +339,11 @@ fun StatementScreen(
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onOpen202) { Text("Открыть раздел 202") }
-                    OutlinedButton(onClick = { vm.tickOptionTurns() }) { Text("Ход (−1 опционам)") }
+                    ActionButton("Открыть раздел 202") { onOpen202() }
                 }
             }
 
-            Box(Modifier.padding(8.dp))
+            Box(Modifier.padding(10.dp))
         }
     }
 
@@ -273,7 +363,8 @@ fun StatementScreen(
         Dlg.SET_CASH -> SetCashDialog(vm, s) { dialog = null }
         Dlg.CHARITY -> ConfirmDialog(
             "Благотворительность",
-            "Списать 10% от общего дохода (${money(Calculator.totalIncome(s) / 10)}) и получить право бросать 1–2 кубика 3 хода?",
+            "Пожертвовать 10% общего дохода (${money(Calculator.charityDonation(s))})? " +
+                "Взамен 3 следующих хода бросаете по 2 кубика.",
             { vm.charity() }, { dialog = null },
         )
         Dlg.DOWNSIZED -> ConfirmDialog(
@@ -288,9 +379,17 @@ fun StatementScreen(
         )
         null -> Unit
     }
-}
 
-@Composable
-private fun ActionChip(label: String, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = Modifier.padding(vertical = 2.dp)) { Text(label) }
+    editProp?.let { (isBiz, p) ->
+        // Берём свежую версию объекта из состояния (на случай отмены/правок).
+        val current = (if (isBiz) s.businesses else s.realEstate).firstOrNull { it.id == p.id }
+        if (current == null) editProp = null
+        else EditPropertyDialog(vm, isBiz, current) { editProp = null }
+    }
+
+    editStock?.let { h ->
+        val current = s.stocks.firstOrNull { it.id == h.id }
+        if (current == null) editStock = null
+        else EditStockDialog(vm, current) { editStock = null }
+    }
 }

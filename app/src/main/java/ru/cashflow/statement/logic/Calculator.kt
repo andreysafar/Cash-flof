@@ -40,6 +40,13 @@ object Calculator {
     /** Месячный денежный поток («День выплат» / получка). */
     fun monthlyCashFlow(s: FinancialStatement): Long = totalIncome(s) - totalExpenses(s)
 
+    /**
+     * Пожертвование на благотворительность = 10% общего дохода
+     * (по правилам РФ-издания, округление до ближайшего доллара).
+     * Взамен — 3 следующих хода игрок бросает по две кости.
+     */
+    fun charityDonation(s: FinancialStatement): Long = (totalIncome(s) + 5) / 10
+
     /** Условие выхода из крысиных бегов: пассивный доход превышает общий расход. */
     fun canExitRatRace(s: FinancialStatement): Boolean = passiveIncome(s) > totalExpenses(s)
 

@@ -21,6 +21,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ru.cashflow.statement.model.FinancialStatement
+import ru.cashflow.statement.model.Property
+import ru.cashflow.statement.model.StockHolding
 import ru.cashflow.statement.model.StockType
 
 @Composable
@@ -345,6 +347,73 @@ fun FastTrackBusinessDialog(vm: StatementViewModel, onClose: () -> Unit) {
         TextInputField("Тип бизнеса", name, { name = it })
         NumberField("Первый взнос", down, { down = it })
         NumberField("Месячный денежный поток", income, { income = it })
+    }
+}
+
+/** Изменение существующего объекта (недвижимость/бизнес) без движения денег. */
+@Composable
+fun EditPropertyDialog(
+    vm: StatementViewModel,
+    isBusiness: Boolean,
+    property: Property,
+    onClose: () -> Unit,
+) {
+    var name by remember { mutableStateOf(property.name) }
+    var down by remember { mutableStateOf(property.downPayment) }
+    var price by remember { mutableStateOf(property.price) }
+    var flow by remember { mutableStateOf(property.cashFlow) }
+    var mortgage by remember { mutableStateOf(property.mortgage) }
+
+    DialogShell(
+        title = if (isBusiness) "Изменить бизнес" else "Изменить недвижимость",
+        confirmEnabled = name.isNotBlank(),
+        onConfirm = { vm.editProperty(isBusiness, property.id, name.trim(), down, price, flow, mortgage); onClose() },
+        onDismiss = onClose,
+    ) {
+        Hint("Правка значений не двигает наличные — это исправление отчёта. " +
+            "Чтобы продать с зачислением денег, используйте «Продать актив».")
+        TextInputField("Название", name, { name = it })
+        NumberField("Первый взнос", down, { down = it })
+        NumberField("Цена", price, { price = it })
+        NumberField("Денежный поток (в месяц)", flow, { flow = it })
+        NumberField("Ипотека / пассив по объекту", mortgage, { mortgage = it })
+        TextButton(
+            onClick = { vm.removeProperty(isBusiness, property.id); onClose() },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        ) { Text("Удалить из отчёта (без денег)") }
+    }
+}
+
+/** Изменение существующей позиции по ценным бумагам без движения денег. */
+@Composable
+fun EditStockDialog(vm: StatementViewModel, holding: StockHolding, onClose: () -> Unit) {
+    var symbol by remember { mutableStateOf(holding.symbol) }
+    var shares by remember { mutableStateOf(holding.shares) }
+    var price by remember { mutableStateOf(holding.pricePerShare) }
+    var dividend by remember { mutableStateOf(holding.dividendPerShare) }
+    var strike by remember { mutableStateOf(holding.strikePrice) }
+    val isOption = holding.type == StockType.CALL_OPTION || holding.type == StockType.PUT_OPTION
+
+    DialogShell(
+        title = "Изменить: ${stockTypeLabel(holding.type)}",
+        confirmEnabled = symbol.isNotBlank() && shares > 0 && price > 0,
+        onConfirm = { vm.editStock(holding.id, symbol.trim(), shares, price, dividend, strike); onClose() },
+        onDismiss = onClose,
+    ) {
+        Hint("Правка значений не двигает наличные — это исправление отчёта.")
+        TextInputField("Символ", symbol, { symbol = it })
+        NumberField("Количество", shares, { shares = it })
+        NumberField(if (isOption) "Премия за акцию" else "Цена за акцию", price, { price = it })
+        if (holding.type == StockType.LONG) {
+            NumberField("Дивиденд на акцию (мес.)", dividend, { dividend = it })
+        }
+        if (isOption) {
+            NumberField("Объявленная цена (strike)", strike, { strike = it })
+        }
+        TextButton(
+            onClick = { vm.removeStock(holding.id); onClose() },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        ) { Text("Удалить из отчёта (без денег)") }
     }
 }
 

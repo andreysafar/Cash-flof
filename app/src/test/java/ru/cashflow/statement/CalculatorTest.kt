@@ -97,6 +97,18 @@ class CalculatorTest {
     }
 
     @Test
+    fun charity_isTenPercentOfTotalIncome_rounded() {
+        val s = manager() // общий доход 4600
+        assertEquals(460L, Calculator.charityDonation(s))
+        // С пассивным доходом: 4600 + 50 + 1800 = 6450 → 645
+        val s2 = manager().copy(
+            interest = 50,
+            businesses = listOf(Property(1, "Сеть", 0, 0, 1800, 0)),
+        )
+        assertEquals(645L, Calculator.charityDonation(s2))
+    }
+
+    @Test
     fun options_and_short_payoffs() {
         val call = StockHolding(1, "MYT4U", 500, 5, StockType.CALL_OPTION, strikePrice = 20)
         assertEquals(5000L, Calculator.callOptionPayoff(call, 30L)) // (30-20)*500
